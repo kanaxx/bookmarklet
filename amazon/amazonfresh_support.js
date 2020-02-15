@@ -5,19 +5,14 @@
 // ==/ClosureCompiler==
 javascript:(
     function(f){
-        if(window.jQuery && jQuery().jquery > '3.2') {
-            console.log('use jquery');
-            f(jQuery);
-        }else{
-            console.log('load jquery');
-            var script = document.createElement('script');
-            script.src = '//code.jquery.com/jquery-3.4.1.min.js';
-            script.onload = function(){
-                var $ = jQuery.noConflict(true);
-                f($);
-            };
-            document.body.appendChild(script);
-        }
+        console.log('load jquery');
+        var script = document.createElement('script');
+        script.src = '//code.jquery.com/jquery-3.4.1.min.js';
+        script.onload = function(){
+            var $ = jQuery.noConflict(true);
+            f($);
+        };
+        document.body.appendChild(script);
     }(
     function($,undefined){
 
@@ -25,9 +20,10 @@ javascript:(
         var groceryList = [];
         var current = '';
         var token = '';
-        const wait = 750;//milsec
+        const wait = 555;//milsec
         const storageKeyName = 'amaxon_current_shippinglist';
 
+        //お買いものリストだったらフォーム出したり
         if(location.href.match(/www.amazon.co.jp\/afx\/lists\/grocerylists/)){
             var head = document.head.innerHTML;
             if( head.match(/"csrfToken":"([^"]*)"/) ){
@@ -41,11 +37,12 @@ javascript:(
             return;
         }
 
+        //お買いものリスト外で緑のカートボタンがあるなら
         var spans = $('span[data-fresh-add-to-cart]');
         if( spans.length > 0){
             var lastListId = localStorage.getItem(storageKeyName);
             console.log(lastListId);
-            showButton(lastListId);
+            showAddShoppingListButton(lastListId);
 
         }else{
             alert('対象ページではありません');
@@ -58,17 +55,17 @@ javascript:(
             $('div#left-0')
             .append(
                 '<div>' + 
-                '<textarea id="_az_asinList" rows="10"></textarea><br>'+
-                '<button id="_az_addItem" >リストに追加</button>' + 
+                '<textarea id="_knx_newAsinText" rows="10"></textarea><br>'+
+                '<button id="_knx_addListButton" >リストに追加</button>' + 
                 '</div>'
             )
             .append(
                 '<hr>'+
-                '<div><button id="_az_addCart" >商品をカートに入れる</button></div>'
+                '<div><button id="_knx_addCartButton" >商品をカートに入れる</button></div>'
             );
 
-            $('button#_az_addItem').on('click', function(){addItemToShoppingList()});
-            $('button#_az_addCart').on('click', function(){addItemToCart()});
+            $('button#_knx_addListButton').on('click', function(){addItemToShoppingList()});
+            $('button#_knx_addCartButton').on('click', function(){addItemToCart()});
         }
 
         //お買いものリストの名前とIDをHTMLから探す
@@ -106,7 +103,7 @@ javascript:(
             return items;
         }
 
-        //カートに入れる（ボタンを押すだけ）
+        //カートに入れる（画面上のボタンを順番に押すだけ）
         async function addItemToCart(){
             var items = findAvailableItems();
             var btns = [];
@@ -116,7 +113,7 @@ javascript:(
                 if(span.is(':visible')){
                     btns.push(span);
                 }else{
-                    console.log('invisible cart button');
+                    console.log('invisible cart button %s', items[i].asin);
                 }
             }
             if(confirm(btns.length + 'の商品をカートに入れますか？')){
@@ -136,45 +133,36 @@ javascript:(
             for(i in items){
                 existedAsins.push(items[i].asin);
             }
-            var asinList = $('textarea#_az_asinList').val().split("\n")
-                .filter(function(v){ return v.trim()!='';})
-                .filter(function (x, i, self) {
-                    return self.indexOf(x.trim()) === i;
-                });
-            // console.log(asinList);
-            $('textarea#_az_asinList').val(asinList.join("\n"));
+            var textList = $('textarea#_knx_newAsinText').val().split("\n");
+            var newAsins = cleanList(textList, existedAsins);
 
-            if(asinList.length==0){
+            $('textarea#_knx_newAsinText').val(newAsins.join("\n"));
+
+            if(newAsins.length==0){
                 alert('追加する商品が指定されていないです');
                 return;
             }
-            if( confirm(asinList.length +'個の商品を買い物リストに追加しますか？')){
+            if( confirm(newAsins.length +'個の商品を買い物リストに追加しますか？')){
                 var added=0;
-                for(i in asinList){
-                    var inputAsin = asinList[i];
-                    if(existedAsins.indexOf(inputAsin)>=0){
-                        console.log('duplicated %s', inputAsin);
-                        continue;
-                    }
-
-                    $('h1#shopping-list-title').text(inputAsin + ' (' + (parseInt(i)+1) + '/' + asinList.length + ')' );
-                    var result = await callAddItemAPI({asin:inputAsin, listID:current});
-                    console.log(result);
-                    await new Promise(resolve => setTimeout(resolve, 300));
+                for(i in newAsins){
+                    $('h1#shopping-list-title').text( newAsins[i] + ' (' + (parseInt(i)+1) + '/' + asinList.length + ')' );
+                    var apiResult = await callAddItemAPI(current,  newAsins[i]);
+                    console.log(apiResult);
+                    await new Promise(resolve => setTimeout(resolve, wait));
                     added++;
                 }
-                alert('追加しました');
+                alert(added + '商品を追加しました');
                 if(added>0){
                     window.location.reload(true);
                 }
             }
         }
         //AmazonのAPIを呼び出す
-        async function callAddItemAPI(param){
+        async function callAddItemAPI(shoppingListID, asin){
             const headers = {
                 'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8'
             };
-            const body = Object.keys(param).map((key)=>key+"="+encodeURIComponent(param[key])).join("&");
+            const body = "listID="+encodeURIComponent(shoppingListID) + '&asin='+encodeURIComponent(asin);
             var response = await fetch('https://www.amazon.co.jp/afx/lists/json/shoppinglists/additem', 
                 {method:'POST', 'headers':headers, 'body':body, credentials:'same-origin'}
             );
@@ -183,26 +171,42 @@ javascript:(
             return json;
         }
         
-        function showButton( listID ){
+        //
+        function showAddShoppingListButton( listID ){
             $('span[data-fresh-add-to-cart]').each(function(index){
                 var data = JSON.parse($(this).attr('data-fresh-add-to-cart'));
                 console.log(data.asin);
                 $(this).parent().append(
-                    '<button class="_az_addlist" data-asin="'+data.asin+'" data-list="'+listID+'">買いものリストへ</button>'
+                    '<button class="_knx_addListButton" data-asin="'+data.asin+'" data-list="'+listID+'">買いものリストへ</button>'
                 );
             });
-            $('button._az_addlist').on('click', async function(){
-                console.log(this.dataset.asin);
-                console.log(this.dataset.list);
-                
-                var json = await callAddItemAPI({asin:this.dataset.asin, listID:this.dataset.list});
-                if(json.successful){
+            $('button._knx_addListButton').on('click', async function(){
+                var apiResult = await callAddItemAPI(this.dataset.list, this.dataset.asin);
+                if(apiResult.successful){
                     $(this).text('追加しました');
                 }
             });
-        
+        }
+
+        function cleanList(inputList, nowList){
+            var cleaned = inputList
+            //スペースは除去したあとに
+            .map( v => v.replace(/\s+/g, "") )
+            //空行は除去
+            .filter( v => v!='')
+            //配列内の重複も除去
+            .filter(　(v, i, self) => self.indexOf(v) === i)
+            //nowListにあるものも除去
+            .filter( v => {
+                if(nowList.indexOf(v)>=0){
+                    console.log('duplicated %s', v);
+                    return false;
+                }
+                return true;
+            });
+            console.log(cleaned);
+            return cleaned;
         }
     }
-
     )
 )
