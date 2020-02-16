@@ -54,7 +54,7 @@ javascript:(
         function createLeftNaviForm(){
             $('div#left-0')
             .append(
-                '<div>' + 
+                '<div>ASIN<br>' + 
                 '<textarea id="_knx_newAsinText" rows="10"></textarea><br>'+
                 '<button id="_knx_addListButton" >リストに追加</button>' + 
                 '</div>'
@@ -62,10 +62,14 @@ javascript:(
             .append(
                 '<hr>'+
                 '<div><button id="_knx_addCartButton" >商品をカートに入れる</button></div>'
+            )
+            .append(
+                '<div><button id="_knx_showAsinButton" >ASINを表示</button></div>'
             );
 
             $('button#_knx_addListButton').on('click', function(){addItemToShoppingList()});
             $('button#_knx_addCartButton').on('click', function(){addItemToCart()});
+            $('button#_knx_showAsinButton').on('click', function(){showAsin()});
         }
 
         //お買いものリストの名前とIDをHTMLから探す
@@ -86,26 +90,34 @@ javascript:(
             console.log(groceryList);
         }
         //お買いものリスト内にある商品をHTMLから探す
-        function findAvailableItems(){
-            items = [];
-            var i=$('div.asin-item-grid input[type="hidden"]');
-            $('div.asin-item-grid input[type="hidden"]').each(function(i,e){
-                var asin = e.id.replace('-list-item-id','');
-                var id = $(e).val();
-                if( $('div#'+ asin + '-item-container').css('display') != 'none'){
-                    items.push({id:id,asin:asin});
-                    console.log('%s is visible', asin);
-                }else{
-                    console.log('%s is not visible',asin);
+        function findItems(onlyAvailable){
+            var items = [];
+            $('div.asin-item-grid div.asinWrapper').each(function(i,e){
+                var asin = e.id.replace('-item-container','');
+                var img = $(e).find('div.imageRow img').first();
+                var name = '';
+                if(img.length>0){
+                    name = img.attr('alt');
                 }
+
+                var available = false;
+                if( $(e).find('span#' + asin + '-add-to-cart').length > 0){
+                    available = true;
+                }
+                items.push( {asin, name, available} );
             });
-            console.log(items);
+            console.log('all items :',items);
+
+            if( onlyAvailable ){
+                items = items.filter( i => i.available);
+            }
+
             return items;
         }
 
         //カートに入れる（画面上のボタンを順番に押すだけ）
         async function addItemToCart(){
-            var items = findAvailableItems();
+            var items = findItems(true);
             var btns = [];
             for(i in items){
                 console.log(items[i].asin);
@@ -128,7 +140,7 @@ javascript:(
 
         //shoppingListにASINを登録する
         async function addItemToShoppingList(){
-            var items = findAvailableItems();
+            var items = findItems(false);
             var existedAsins = [];
             for(i in items){
                 existedAsins.push(items[i].asin);
@@ -188,6 +200,21 @@ javascript:(
             });
         }
 
+        //ASIN表示
+        function showAsin(){
+            var items = findItems(false);
+            var asins = [];
+            for(var i in items){
+                asins.push(items[i].asin);
+            }
+            var tabbed = asins.join("\t");
+            console.log('--ASIN--');
+            console.log(tabbed);
+
+            var n = asins.join("<br>");
+            var w = window.open();
+            w.document.write(n);
+        }
         function cleanList(inputList, nowList){
             var cleaned = inputList
             //スペースは除去したあとに
