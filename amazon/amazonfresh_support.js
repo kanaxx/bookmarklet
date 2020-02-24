@@ -16,9 +16,8 @@ javascript:(
     }(
     function($,undefined){
 
-        var items = [];
         var groceryList = [];
-        var current = '';
+        var currentShoppingList = null;
         var token = '';
         const wait = 555;//milsec
         const storageKeyName = 'amaxon_current_shippinglist';
@@ -33,19 +32,24 @@ javascript:(
     
             findShoppingList();
             createLeftNaviForm();
-            localStorage.setItem(storageKeyName, current);
+            localStorage.setItem(storageKeyName, JSON.stringify(currentShoppingList));
             return;
         }
 
         //お買いものリスト外で緑のカートボタンがあるなら
         var spans = $('span[data-fresh-add-to-cart]');
         if( spans.length > 0){
-            var lastListId = localStorage.getItem(storageKeyName);
-            console.log(lastListId);
-            showAddShoppingListButton(lastListId);
-
+            var json = localStorage.getItem(storageKeyName);
+            if(!json){
+                alert('お買いものリストが記録されていません');
+                return;
+            }
+            var lastShoppingList = JSON.parse(json);
+            console.log(lastShoppingList);
+            showAddShoppingListButton(lastShoppingList);
+            alert('【'+lastShoppingList.name +'】に商品を追加します');
         }else{
-            alert('対象ページではありません');
+            alert('ブックマークレットの対象ページではありません');
             window.location.href = 'https://www.amazon.co.jp/afx/lists/grocerylists';
             return;
         }
@@ -54,7 +58,7 @@ javascript:(
         function createLeftNaviForm(){
             $('div#left-0')
             .append(
-                '<div>ASIN<br>' + 
+                '<div style="margin:5px">■ASIN<br>' + 
                 '<textarea id="_knx_newAsinText" rows="10"></textarea><br>'+
                 '<button id="_knx_addListButton" >リストに追加</button>' + 
                 '</div>'
@@ -79,15 +83,15 @@ javascript:(
                 var g = $(e).find('div.shopping-list-nav').first();
                 var id = g.attr('id').replace('-shopping-list-display','');
                 var name = g.text().trim();
-                groceryList.push({id, name});
+                var o = {id, name};
+                groceryList.push(o);
 
                 if( $(e).find('div#selectedListIndicator').length>0 ){
-                    current = id;
-                    console.log(current);
+                    currentShoppingList = o;
+                    console.log(currentShoppingList);
                 }
             });
-
-            console.log(groceryList);
+            console.log('お買いものリスト', groceryList);
         }
         //お買いものリスト内にある商品をHTMLから探す
         function findItems(onlyAvailable){
@@ -158,7 +162,7 @@ javascript:(
                 var added=0;
                 for(i in newAsins){
                     $('h1#shopping-list-title').text( newAsins[i] + ' (' + (parseInt(i)+1) + '/' + asinList.length + ')' );
-                    var apiResult = await callAddItemAPI(current,  newAsins[i]);
+                    var apiResult = await callAddItemAPI(currentShoppingList.id,  newAsins[i]);
                     console.log(apiResult);
                     await new Promise(resolve => setTimeout(resolve, wait));
                     added++;
@@ -184,12 +188,12 @@ javascript:(
         }
         
         //
-        function showAddShoppingListButton( listID ){
+        function showAddShoppingListButton( list ){
             $('span[data-fresh-add-to-cart]').each(function(index){
                 var data = JSON.parse($(this).attr('data-fresh-add-to-cart'));
                 console.log(data.asin);
                 $(this).parent().append(
-                    '<button class="_knx_addListButton" data-asin="'+data.asin+'" data-list="'+listID+'">買いものリストへ</button>'
+                    '<button class="_knx_addListButton" data-asin="'+data.asin+'" data-list="'+list.id+'">買いものリストへ</button>'
                 );
             });
             $('button._knx_addListButton').on('click', async function(){
@@ -212,7 +216,7 @@ javascript:(
             console.log(tabbed);
 
             var n = asins.join("<br>");
-            var w = window.open();
+            var w = window.open('','amazonfresh','width=200,height=300,');
             w.document.write(n);
         }
         function cleanList(inputList, nowList){
@@ -234,6 +238,5 @@ javascript:(
             console.log(cleaned);
             return cleaned;
         }
-    }
-    )
+    })
 )
