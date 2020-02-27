@@ -208,6 +208,7 @@ javascript:(
         function showAsin(){
             var items = findItems(false);
             var asins = [];
+            
             for(var i in items){
                 asins.push(items[i].asin);
             }
@@ -215,9 +216,13 @@ javascript:(
             console.log('--ASIN--');
             console.log(tabbed);
 
-            var n = asins.join("<br>");
-            var w = window.open('','amazonfresh','width=200,height=300,');
-            w.document.write(n);
+            var html = '';
+            for(var i in items){
+                html += items[i].asin + ' ' + items[i].name + '<br>';
+            }
+
+            var w = window.open('','amazonfresh','width=750,height=300,');
+            w.document.write(html);
         }
         function cleanList(inputList, nowList){
             var cleaned = inputList
